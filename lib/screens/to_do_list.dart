@@ -1,12 +1,11 @@
+// screens/to_do_list.dart
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:adhd_list/screens/task_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../main.dart';
 import 'archive_page.dart';
 import '../models/task.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -28,10 +27,9 @@ class _ToDoListState extends State<ToDoList> {
   void initState() {
     super.initState();
     loadTasks();
-    loadArchivedTasks(); // Füge diese Zeile hinzu
+    loadArchivedTasks();
     startTimer();
   }
-
 
   Future<void> loadTasks() async {
     prefs = await SharedPreferences.getInstance();
@@ -51,40 +49,6 @@ class _ToDoListState extends State<ToDoList> {
     }
   }
 
-  Future<void> saveTasks() async {
-    List<String> taskList = tasks.map((task) => task.toMap()).toList();
-    await prefs.setStringList('tasks', taskList);
-    loadTasks();
-  }
-
-  Future<void> saveArchivedTasks() async {
-    List<String> archivedTaskList = archivedTasks.map((task) => task.toMap()).toList();
-    await prefs.setStringList('archivedTasks', archivedTaskList);
-  }
-
-
-  void startTimer() {
-    const oneMinute = const Duration(minutes: 1);
-    archiveTimer = Timer.periodic(oneMinute, (timer) async {
-      await moveToArchive();
-    });
-  }
-
-  Future<void> moveToArchive() async {
-    setState(() {
-      List<Task> completedTasks = tasks.where((task) => task.isDone).toList();
-      tasks.removeWhere((task) => task.isDone);
-
-      // Füge die abgeschlossenen Aufgaben zum Archiv hinzu
-      archivedTasks.addAll(completedTasks);
-
-      // Speichere die Aufgaben im Archiv
-      saveArchivedTasks();
-      // Speichere die offenen Aufgaben
-      saveTasks();
-    });
-  }
-
   Future<void> loadArchivedTasks() async {
     prefs = await SharedPreferences.getInstance();
     List<String>? archivedTaskList = prefs.getStringList('archivedTasks');
@@ -98,6 +62,36 @@ class _ToDoListState extends State<ToDoList> {
         archivedTasks = [];
       });
     }
+  }
+
+
+  Future<void> saveTasks() async {
+    List<String> taskList = tasks.map((task) => task.toMap()).toList();
+    await prefs.setStringList('tasks', taskList);
+    loadTasks();
+  }
+
+  Future<void> saveArchivedTasks() async {
+    List<String> archivedTaskList = archivedTasks.map((task) => task.toMap()).toList();
+    await prefs.setStringList('archivedTasks', archivedTaskList);
+  }
+
+  void startTimer() {
+    const oneMinute = const Duration(minutes: 1);
+    archiveTimer = Timer.periodic(oneMinute, (timer) async {
+      await moveToArchive();
+    });
+  }
+
+  Future<void> moveToArchive() async {
+    setState(() {
+      List<Task> completedTasks = tasks.where((task) => task.isDone).toList();
+      tasks.removeWhere((task) => task.isDone);
+      saveTasks();
+
+      archivedTasks.addAll(completedTasks);
+      saveArchivedTasks();
+    });
   }
 
   Color getTaskColor(Task task) {
@@ -126,7 +120,7 @@ class _ToDoListState extends State<ToDoList> {
                   pw.Text(task.taskName),
                   pw.Spacer(),
                   pw.Text(
-                    task.isDone ? 'Completed' : '[ ]',
+                    task.isDone ? 'Completed' : 'Open',
                     style: pw.TextStyle(color: task.isDone ? PdfColors.grey : PdfColors.black),
                   ),
                 ],
@@ -158,22 +152,49 @@ class _ToDoListState extends State<ToDoList> {
               child: ListView.builder(
                 itemCount: tasks.length,
                 itemBuilder: (context, index) {
-                  final task = tasks[index];
-                  return TaskWidget(
-                    taskName: task.taskName,
-                    isDone: task.isDone,
-                    onCheckboxChanged: (value) {
-                      setState(() {
-                        task.isDone = value!;
-                        saveTasks();
-                      });
-                    },
-                    onDelete: () {
-                      setState(() {
-                        tasks.removeAt(index);
-                        saveTasks();
-                      });
-                    },
+                  return Container(
+                    margin: EdgeInsets.symmetric(vertical: 8.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10.0),
+                      color: tasks[index].getTaskColor(),
+                    ),
+                    child: Card(
+                      elevation: 3.0,
+                      child: ListTile(
+                        title: Row(
+                          children: [
+                            Checkbox(
+                              value: tasks[index].isDone,
+                              onChanged: (value) {
+                                setState(() {
+                                  tasks[index].isDone = value!;
+                                  saveTasks();
+                                });
+                              },
+                            ),
+                            Text(
+                              tasks[index].taskName,
+                              style: TextStyle(
+                                color: tasks[index].isDone ? Colors.grey : Colors.white,
+                                decoration: tasks[index].isDone
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            ),
+                            Spacer(),
+                            IconButton(
+                              icon: Icon(Icons.delete),
+                              onPressed: () {
+                                setState(() {
+                                  tasks.removeAt(index);
+                                  saveTasks();
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -198,7 +219,7 @@ class _ToDoListState extends State<ToDoList> {
                   suffixIcon: IconButton(
                     icon: Icon(Icons.add),
                     onPressed: () {
-                      setState(() {
+                      setState(() async {
                         tasks.add(Task(
                           taskName: taskController.text,
                           isDone: false,
@@ -220,7 +241,6 @@ class _ToDoListState extends State<ToDoList> {
         children: [
           FloatingActionButton(
             onPressed: () async {
-              await moveToArchive();
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => ArchivePage()),
@@ -248,4 +268,3 @@ class _ToDoListState extends State<ToDoList> {
     super.dispose();
   }
 }
-
