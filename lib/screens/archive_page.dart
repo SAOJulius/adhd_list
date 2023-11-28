@@ -1,4 +1,3 @@
-// screens/archive_page.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
@@ -37,11 +36,10 @@ class _ArchivePageState extends State<ArchivePage> {
       });
     } else {
       setState(() {
-        archivedTasks = []; // Füge diese Zeile hinzu, um archivedTasks zu initialisieren
+        archivedTasks = [];
       });
     }
   }
-
 
   Future<void> saveArchivedTasks() async {
     List<String> archivedTaskList = archivedTasks.map((task) => task.toMap()).toList();
@@ -74,20 +72,21 @@ class _ArchivePageState extends State<ArchivePage> {
                 child: ListTile(
                   title: Row(
                     children: [
-                      Text(
-                        archivedTasks[index].taskName,
-                        style: TextStyle(
-                          color: Colors.grey,
-                          decoration: TextDecoration.lineThrough,
+                      Expanded(
+                        child: Text(
+                          archivedTasks[index].taskName,
+                          style: TextStyle(
+                            color: Colors.grey,
+                            decoration: TextDecoration.lineThrough,
+                          ),
                         ),
                       ),
-                      Spacer(),
                       IconButton(
                         icon: Icon(Icons.delete),
                         onPressed: () {
                           setState(() {
                             archivedTasks.removeAt(index);
-                            saveArchivedTasks();
+                            saveArchivedTasks(); // Dieser Aufruf speichert die aktualisierte Liste in SharedPreferences
                           });
                         },
                       ),

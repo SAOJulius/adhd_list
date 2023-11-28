@@ -1,4 +1,3 @@
-// screens/to_do_list.dart
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -20,6 +19,7 @@ class _ToDoListState extends State<ToDoList> {
   List<Task> archivedTasks = [];
   late SharedPreferences prefs;
   late Timer archiveTimer;
+  Timer? deleteTimer;
 
   TextEditingController taskController = TextEditingController();
 
@@ -28,7 +28,6 @@ class _ToDoListState extends State<ToDoList> {
     super.initState();
     loadTasks();
     loadArchivedTasks();
-    startTimer();
   }
 
   Future<void> loadTasks() async {
@@ -64,7 +63,6 @@ class _ToDoListState extends State<ToDoList> {
     }
   }
 
-
   Future<void> saveTasks() async {
     List<String> taskList = tasks.map((task) => task.toMap()).toList();
     await prefs.setStringList('tasks', taskList);
@@ -76,30 +74,44 @@ class _ToDoListState extends State<ToDoList> {
     await prefs.setStringList('archivedTasks', archivedTaskList);
   }
 
-  void startTimer() {
-    const oneMinute = const Duration(minutes: 1);
-    archiveTimer = Timer.periodic(oneMinute, (timer) async {
-      await moveToArchive();
+  Future<void> moveToArchive() async {
+    setState(() {
+      DateTime currentDate = DateTime.now();
+      List<Task> completedTasks = tasks.where((task) => task.isDone).toList();
+
+      for (Task task in completedTasks) {
+        // Überprüfen, ob der Unterschied zwischen dem aktuellen Datum und dem Datum der letzten Aktion mindestens einen Tag beträgt
+        if (currentDate.difference(task.actionDate).inDays >= 1) {
+          task.actionDate = currentDate;
+          archivedTasks.add(task);
+        }
+      }
+
+      tasks.removeWhere((task) => task.isDone);
+      saveTasks();
+      saveArchivedTasks();
     });
   }
 
-  Future<void> moveToArchive() async {
+  Future<void> deleteCompletedTasks() async {
     setState(() {
       List<Task> completedTasks = tasks.where((task) => task.isDone).toList();
-      tasks.removeWhere((task) => task.isDone);
-      saveTasks();
 
-      archivedTasks.addAll(completedTasks);
-      saveArchivedTasks();
+      for (Task task in completedTasks) {
+        tasks.remove(task);
+      }
+
+      saveTasks();
     });
   }
 
   Color getTaskColor(Task task) {
     DateTime now = DateTime.now();
-    DateTime taskTime = task.creationTime;
-    if (now.difference(taskTime).inMinutes >= 2) {
+    DateTime actionDate = task.actionDate;
+
+    if (now.difference(actionDate).inDays >= 1) {
       return Colors.red;
-    } else if (now.difference(taskTime).inMinutes >= 1) {
+    } else if (now.difference(actionDate).inHours >= 1) {
       return Colors.orange;
     } else {
       return Colors.green;
@@ -120,8 +132,8 @@ class _ToDoListState extends State<ToDoList> {
                   pw.Text(task.taskName),
                   pw.Spacer(),
                   pw.Text(
-                    task.isDone ? 'Completed' : 'Open',
-                    style: pw.TextStyle(color: task.isDone ? PdfColors.grey : PdfColors.black),
+                    task.isDone ? '[X]' : '[  ]',
+                    style: pw.TextStyle(color: task.isDone ? PdfColors.green : PdfColors.red),
                   ),
                 ],
               ),
@@ -172,16 +184,17 @@ class _ToDoListState extends State<ToDoList> {
                                 });
                               },
                             ),
-                            Text(
-                              tasks[index].taskName,
-                              style: TextStyle(
-                                color: tasks[index].isDone ? Colors.grey : Colors.white,
-                                decoration: tasks[index].isDone
-                                    ? TextDecoration.lineThrough
-                                    : TextDecoration.none,
+                            Expanded(
+                              child: Text(
+                                tasks[index].taskName,
+                                style: TextStyle(
+                                  color: tasks[index].isDone ? Colors.grey : Colors.white,
+                                  decoration: tasks[index].isDone
+                                      ? TextDecoration.lineThrough
+                                      : TextDecoration.none,
+                                ),
                               ),
                             ),
-                            Spacer(),
                             IconButton(
                               icon: Icon(Icons.delete),
                               onPressed: () {
@@ -209,6 +222,7 @@ class _ToDoListState extends State<ToDoList> {
                       taskName: value,
                       isDone: false,
                       creationTime: DateTime.now(),
+                      actionDate: DateTime.now(),
                     ));
                     saveTasks();
                     taskController.clear();
@@ -224,6 +238,7 @@ class _ToDoListState extends State<ToDoList> {
                           taskName: taskController.text,
                           isDone: false,
                           creationTime: DateTime.now(),
+                          actionDate: DateTime.now(),
                         ));
                         saveTasks();
                         taskController.clear();
@@ -265,6 +280,7 @@ class _ToDoListState extends State<ToDoList> {
   @override
   void dispose() {
     archiveTimer.cancel();
+    deleteTimer?.cancel(); // Timer für das Löschen nach einem Tag abbrechen
     super.dispose();
   }
 }
